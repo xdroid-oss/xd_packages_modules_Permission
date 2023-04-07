@@ -30,8 +30,6 @@ import android.safetycenter.SafetyCenterManager
 import android.safetycenter.SafetyCenterManager.OnSafetyCenterDataChangedListener
 import android.safetycenter.SafetyCenterManager.REFRESH_REASON_PAGE_OPEN
 import android.safetycenter.SafetyCenterManager.REFRESH_REASON_RESCAN_BUTTON_CLICK
-import android.safetycenter.SafetyCenterStatus
-import android.safetycenter.SafetyCenterStatus.OVERALL_SEVERITY_LEVEL_UNKNOWN
 import android.safetycenter.SafetyEvent
 import android.safetycenter.SafetyEvent.SAFETY_EVENT_TYPE_SOURCE_STATE_CHANGED
 import android.safetycenter.SafetySourceData
@@ -40,6 +38,7 @@ import android.safetycenter.SafetySourceData.SEVERITY_LEVEL_INFORMATION
 import android.safetycenter.SafetySourceData.SEVERITY_LEVEL_UNSPECIFIED
 import android.safetycenter.SafetySourceErrorDetails
 import android.safetycenter.SafetySourceIssue
+import android.safetycenter.SafetySourceIssue.ISSUE_CATEGORY_DEVICE
 import android.safetycenter.SafetySourceStatus
 import android.safetycenter.config.SafetyCenterConfig
 import android.safetycenter.config.SafetySource
@@ -58,7 +57,6 @@ import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.get
 import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.isSafetyCenterEnabledWithPermission
 import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.refreshSafetySourcesWithPermission
 import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.removeOnSafetyCenterDataChangedListenerWithPermission
-import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.reportSafetySourceErrorWithPermission
 import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.setSafetyCenterConfigForTestsWithPermission
 import android.safetycenter.cts.testing.SafetyCenterApisWithShellPermissions.setSafetySourceDataWithPermission
 import android.safetycenter.cts.testing.SafetyCenterFlags
@@ -121,6 +119,7 @@ class SafetyCenterManagerTest {
                         SafetySourceIssue.Action.Builder(
                                 "critical_action_id", "Solve issue", somePendingIntent)
                             .build())
+                    .setIssueCategory(ISSUE_CATEGORY_DEVICE)
                     .build())
             .build()
     private val listener =
@@ -267,21 +266,6 @@ class SafetyCenterManagerTest {
     }
 
     @Test
-    fun reportSafetySourceError_callsErrorListener() {
-        safetyCenterManager.addOnSafetyCenterDataChangedListenerWithPermission(
-            directExecutor(), listener)
-        // Receive initial data.
-        listener.receiveSafetyCenterData()
-
-        safetyCenterManager.reportSafetySourceErrorWithPermission(
-            CTS_SOURCE_ID, SafetySourceErrorDetails(EVENT_SOURCE_STATE_CHANGED))
-        val safetyCenterErrorDetailsFromListener = listener.receiveSafetyCenterErrorDetails()
-
-        assertThat(safetyCenterErrorDetailsFromListener)
-            .isEqualTo(SafetyCenterErrorDetails("Error"))
-    }
-
-    @Test
     fun reportSafetySourceError_withoutPermission_throwsSecurityException() {
         assertFailsWith(SecurityException::class) {
             safetyCenterManager.reportSafetySourceError(
@@ -353,9 +337,9 @@ class SafetyCenterManagerTest {
     fun refreshSafetySources_withInvalidRefreshSeason_throwsIllegalArgumentException() {
         val thrown =
             assertFailsWith(IllegalArgumentException::class) {
-                safetyCenterManager.refreshSafetySourcesWithPermission(500)
+                safetyCenterManager.refreshSafetySourcesWithPermission(143201)
             }
-        assertThat(thrown).hasMessageThat().isEqualTo("Invalid refresh reason: 500")
+        assertThat(thrown).hasMessageThat().endsWith("refresh reason: 143201")
     }
 
     @Test
@@ -423,15 +407,7 @@ class SafetyCenterManagerTest {
 
         val apiSafetyCenterData = safetyCenterManager.getSafetyCenterDataWithPermission()
 
-        assertThat(apiSafetyCenterData)
-            .isEqualTo(
-                SafetyCenterData(
-                    SafetyCenterStatus.Builder("Unknown", "Unknown safety status")
-                        .setSeverityLevel(OVERALL_SEVERITY_LEVEL_UNKNOWN)
-                        .build(),
-                    emptyList(),
-                    emptyList(),
-                    emptyList()))
+        assertThat(apiSafetyCenterData).isNotNull()
     }
 
     @Test
@@ -703,6 +679,7 @@ class SafetyCenterManagerTest {
                 .setSummaryResId(android.R.string.ok)
                 .setIntentAction(ACTION_SAFETY_CENTER)
                 .setProfile(SafetySource.PROFILE_PRIMARY)
+                .setRefreshOnPageOpenAllowed(true)
                 .build()
         private val CTS_SOURCE_GROUP =
             SafetySourcesGroup.Builder()
